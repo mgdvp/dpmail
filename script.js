@@ -1,7 +1,7 @@
 let btkn;
 
 const api = 'https://api.mail.tm';
-const domain = 'eurokool.com';
+let domain = '';
 
 const ls = localStorage;
 
@@ -10,26 +10,49 @@ const tempadrs = document.getElementById('tempadrs');
 const inbox = document.getElementById('inbox');
 
 //auth account and get messages
-function auth(){
-	fetch(`${api}/token`,{
+function auth(address, password){
+	return fetch(`${api}/token`, {
 		method: 'POST',
 		headers: {'Content-Type': 'application/json'},
 		body: JSON.stringify({
-			address: ls.getItem('mailaddress'),
-			password: ls.getItem('pass'),
+			address: address,
+			password: password,
 		})
-	}).then(res => res.json()).then(data => {
-
+	}).then(res => res.json())
+	  .then(data => {
 		btkn = data.token;
-
+		return data.token; // Optional, if needed elsewhere
 	});
-} auth();
+}
 
-setTimeout(getMessages, 900);
+function createAccount(){
+	fetch(`${api}/domains`,{
+		method: 'GET',
+		headers: {'Content-Type': 'application/json'},
+	}).then(res => res.json()).then(data => {
+		domain = data['hydra:member'][0].domain;
+	}).then(() => {
+		const address = `${Math.floor(Math.random() * 10000000).toString(24)}@${domain}`;
+		const password = Math.random().toString().slice(2);
+		fetch(`${api}/accounts`,{
+			method: 'POST',
+			headers: {'Content-Type': 'application/json'},
+			body: JSON.stringify({
+				address: address,
+				password: password,
+			})
+		}).then(res => res.json()).then(data => {
+			auth(address, password).then(() => {
+				tempadrs.innerHTML = `Your temp. mail address is <span style="color: #9DC08B">${data.address}</span><span><br>Click on any message to read it. Reload page to create new account.</span>`;
+				getMessages();
+			});
+		});
+	});
+} createAccount();
 
 function getMessages(){
 	inbox.innerHTML = 'LOADING...';
-	fetch(`${api}/messages/`,{
+	fetch(`https://corsproxy.io/?${api}/messages/`,{
 		method: 'GET',
 		headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + btkn},
 	}).then(res => res.json())
@@ -77,43 +100,10 @@ function getMessages(){
 }
 
 function getMessageById(){
-	fetch(`${api}/messages/${this.id}`,{
+	fetch(`https://corsproxy.io/?${api}/messages/${this.id}`,{
 		method: 'GET',
 		headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + btkn},
 	}).then(res => res.json()).then(data => {
 		inbox.innerHTML = data.html[0];
 	});
-}
-
-//if user has no mail, crate new one.
-function createNewMail(){
-	const accountName = Math.floor(Math.random() * 10000000).toString(24);
-	const accountPass = Math.random().toString().slice(2);
-
-	fetch(`${api}/accounts`,{
-		method: 'POST',
-		headers: {'Content-Type': 'application/json'},
-		body: JSON.stringify({
-			address: `${accountName}@${domain}`,
-			password: accountPass,
-		})
-	}).then(res => res.json()).then(data => {
-
-		const adrs = data.address;
-		const id = data.id;
-
-		tempadrs.innerHTML = `Your temp. mail address is <span style="color: #9DC08B">${adrs}</span> `;
-		ls.setItem('mailaddress', adrs);
-		ls.setItem('id', id);
-		ls.setItem('pass', accountPass);
-		location.reload();
-
-	});
-}
-
-//if user hadn't created mail address before, call createNewMail function.
-if(!ls.getItem('mailaddress')){
-	createNewMail();
-} else {
-	tempadrs.innerHTML = `Your temp. mail address is <span style="color: #9DC08B">${ls.getItem('mailaddress')}</span> `
 }
